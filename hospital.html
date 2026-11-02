@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>البطاقة التعريفية لمستشفيات سوهاج</title>
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.rtl.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+
+    <style>
+        :root {
+            --bg-color: #f3f6fc;
+            --card-bg: #ffffff;
+            --header-bg: #2b3990;
+            --primary-text: #1e293b;
+        }
+
+        body {
+            font-family: 'Cairo', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--primary-text);
+            padding-bottom: 30px;
+            direction: rtl;
+        }
+
+        .dashboard-header {
+            background-color: var(--header-bg);
+            color: white;
+            padding: 18px 0;
+            margin-bottom: 25px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .executive-credit-bar {
+            background: linear-gradient(135deg, #eaf2f8 0%, #d4e4f0 100%);
+            border: 1px solid #b8d2e6;
+            color: #002855;
+            padding: 10px 20px;
+            border-radius: 12px;
+            margin-bottom: 25px;
+            font-weight: 700;
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+        }
+
+        .filter-container {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .filter-label {
+            font-size: 0.95rem;
+            font-weight: 700;
+            margin-bottom: 4px;
+            color: #e2e8f0;
+        }
+
+        .filter-select {
+            border-radius: 10px;
+            font-weight: 700;
+            border: none;
+            padding: 8px 16px;
+            font-size: 1rem;
+            width: 100%;
+            max-width: 320px;
+            color: #1e293b;
+            background-color: #ffffff;
+        }
+
+        .top-card {
+            border-radius: 14px;
+            padding: 16px 20px;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            height: 100%;
+        }
+
+        .top-card.card-blue { background-color: #4361ee; }
+        .top-card.card-orange { background-color: #f97316; }
+        .top-card.card-green { background-color: #0d9488; }
+        .top-card.card-light-blue { background-color: #3b82f6; }
+
+        .top-card-title { font-size: 0.85rem; font-weight: 700; opacity: 0.9; margin-bottom: 2px; }
+        .top-card-val { font-size: 1.5rem; font-weight: 800; line-height: 1.2; }
+        .top-card-icon { font-size: 2.2rem; opacity: 0.35; }
+
+        .main-card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+            height: 100%;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-weight: 800;
+            font-size: 1.1rem;
+            color: #2b3990;
+            border-bottom: 2px solid #f1f5f9;
+            padding-bottom: 12px;
+            margin-bottom: 16px;
+        }
+
+        .metric-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background-color: #f8fafc;
+            border-radius: 12px;
+            padding: 8px 12px;
+            margin-bottom: 7px;
+        }
+
+        .metric-title-group { display: flex; align-items: center; gap: 10px; }
+        .metric-icon-box { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-size: 0.85rem; }
+        .metric-name { font-weight: 700; font-size: 0.85rem; color: #334155; }
+        .metric-number { font-weight: 800; font-size: 1.05rem; color: #1e293b; }
+        .chart-box { position: relative; height: 320px; width: 100%; }
+
+        #loader {
+            text-align: center;
+            padding: 15px;
+            font-weight: 700;
+            color: #2b3990;
+            background: #eef6fc;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border: 1px solid #c0d8ec;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="loader"><i class="fa-solid fa-spinner fa-spin me-2"></i>جاري ربط البيانات وقراءة المساحات والكثافة السكانية...</div>
+
+    <header class="dashboard-header">
+        <div class="container-fluid px-4">
+            <div class="row align-items-center">
+                <div class="col-md-7 text-center text-md-start mb-3 mb-md-0">
+                    <h3 class="fw-bold mb-1"><i class="fa-solid fa-hospital-user me-2"></i>البطاقة التعريفية لمستشفيات سوهاج</h3>
+                    <p class="mb-0 small opacity-75">مديرية الشئون الصحية - مركز المعلومات والتحول الرقمي</p>
+                </div>
+                <div class="col-md-5">
+                    <div class="filter-container ms-md-auto">
+                        <label class="filter-label">فلتر اسم المستشفى:</label>
+                        <select id="hospitalFilter" class="form-select filter-select" onchange="applyFilters()">
+                            <option value="ALL">جميع المستشفيات (الإجمالي)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="container-fluid px-4">
+        <div class="executive-credit-bar">
+            <div><i class="fa-solid fa-user-pen text-teal me-1"></i> إعداد وتصميم: <strong>أ/ إنجي فايز</strong></div>
+            <div><i class="fa-solid fa-user-tie text-primary me-1"></i> تحت إشراف مركز المعلومات والتحول الرقمي: <strong>د/ بيشوي قصدي بشاره</strong></div>
+        </div>
+
+        <div class="row g-3 mb-4">
+            <div class="col-lg-3 col-sm-6">
+                <div class="top-card card-blue">
+                    <div>
+                        <div class="top-card-title">المساحة الكلية للمحافظة</div>
+                        <div class="top-card-val">11,022 كم²</div>
+                    </div>
+                    <i class="fa-solid fa-map-location-dot top-card-icon"></i>
+                </div>
+            </div>
+            <div class="col-lg-3 col-sm-6">
+                <div class="top-card card-orange">
+                    <div>
+                        <div class="top-card-title">مساحة الأرض المخصصة</div>
+                        <div class="top-card-val" id="totalLandArea">0 م²</div>
+                    </div>
+                    <i class="fa-solid fa-layer-group top-card-icon"></i>
+                </div>
+            </div>
+            <div class="col-lg-3 col-sm-6">
+                <div class="top-card card-green">
+                    <div>
+                        <div class="top-card-title">مساحة المباني</div>
+                        <div class="top-card-val" id="totalBuildingArea">0 م²</div>
+                    </div>
+                    <i class="fa-solid fa-building top-card-icon"></i>
+                </div>
+            </div>
+            <div class="col-lg-3 col-sm-6">
+                <div class="top-card card-light-blue">
+                    <div>
+                        <div class="top-card-title">الكثافة السكانية</div>
+                        <div class="top-card-val" id="populationServed">0</div>
+                    </div>
+                    <i class="fa-solid fa-users top-card-icon"></i>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-xl-3 col-lg-6">
+                <div class="main-card">
+                    <div class="section-header">
+                        <span>الخدمات والأجهزة الطبية</span>
+                        <i class="fa-solid fa-square-plus text-success"></i>
+                    </div>
+                    <div id="equipmentListContainer"></div>
+                </div>
+            </div>
+
+            <div class="col-xl-3 col-lg-6">
+                <div class="main-card">
+                    <div class="section-header">
+                        <span>القوي السريرية والأسرّة</span>
+                        <i class="fa-solid fa-bed-pulse text-primary"></i>
+                    </div>
+                    <div id="bedsListContainer"></div>
+                </div>
+            </div>
+
+            <div class="col-xl-3 col-lg-6">
+                <div class="main-card">
+                    <div class="section-header">
+                        <span>القوي البشرية</span>
+                        <i class="fa-solid fa-users-gear text-warning"></i>
+                    </div>
+                    <div id="hrListContainer"></div>
+                </div>
+            </div>
+
+            <div class="col-xl-3 col-lg-6">
+                <div class="main-card">
+                    <div class="section-header">
+                        <span>معدلات إشغال الرعايات</span>
+                        <i class="fa-solid fa-chart-pie text-danger"></i>
+                    </div>
+                    <div class="chart-box">
+                        <canvas id="occupancyBarChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxvULGVO7VjZOCMPuZX1o5p56JVdR8WSSKOaFvAsuxbkJGcOPnL7ZuYIUdDvHJTN3Y2/exec';
+
+        let cloudData = { area: [], card: [], hr: [], depts: [] };
+        let occupancyChartInstance = null;
+
+        window.onload = () => {
+            let script = document.createElement('script');
+            script.src = `${APPS_SCRIPT_URL}?callback=handleSheetData`;
+            script.onerror = () => {
+                document.getElementById('loader').innerHTML = '<span style="color:red;">تعذر جلب البيانات. تأكدي من النشر بوضع Anyone.</span>';
+            };
+            document.body.appendChild(script);
+        };
+
+        function handleSheetData(data) {
+            document.getElementById('loader').style.display = 'none';
+            cloudData = data || { area: [], card: [], hr: [], depts: [] };
+            populateHospitalFilter();
+            applyFilters();
+        }
+
+        // تنظيف النصوص لمقارنة دقيقة وسلسة للمستشفيات
+        function cleanName(name) {
+            if (!name) return '';
+            return name.toString().replace(/[\s\.\-\_]+/g, '').trim().toLowerCase();
+        }
+
+        function getHospitalName(row) {
+            let vals = Object.values(row);
+            return vals[0] ? vals[0].toString().trim() : '';
+        }
+
+        function populateHospitalFilter() {
+            const filter = document.getElementById('hospitalFilter');
+            let hospitalsSet = new Set();
+
+            if (cloudData.area) {
+                cloudData.area.forEach(row => {
+                    let hName = getHospitalName(row);
+                    if (hName && !hName.includes('اسم المستشفي')) hospitalsSet.add(hName);
+                });
+            }
+
+            const hospitals = [...hospitalsSet].filter(Boolean);
+            
+            filter.innerHTML = '<option value="ALL">جميع المستشفيات (الإجمالي)</option>';
+            hospitals.forEach(hosp => {
+                let opt = document.createElement('option');
+                opt.value = hosp;
+                opt.textContent = hosp;
+                filter.appendChild(opt);
+            });
+        }
+
+        function applyFilters() {
+            const selected = document.getElementById('hospitalFilter').value;
+            const targetName = cleanName(selected);
+
+            const filterArr = (arr) => {
+                if (selected === 'ALL') return arr;
+                return arr.filter(r => cleanName(getHospitalName(r)) === targetName);
+            };
+
+            const fArea = filterArr(cloudData.area);
+            const fCard = filterArr(cloudData.card);
+            const fHr = filterArr(cloudData.hr);
+            const fDepts = filterArr(cloudData.depts);
+
+            // جلب القيم من شيت السكان والمساحة بالاعتماد على ترتيب الأعمدة المضمون
+            let land = 0, build = 0, pop = 0;
+            fArea.forEach(row => {
+                let keys = Object.keys(row);
+                if (keys.length >= 4) {
+                    land += parseFloat(row[keys[1]].toString().replace(/,/g, '')) || 0;
+                    build += parseFloat(row[keys[2]].toString().replace(/,/g, '')) || 0;
+                    pop += parseFloat(row[keys[3]].toString().replace(/,/g, '')) || 0;
+                }
+            });
+
+            document.getElementById('totalLandArea').innerText = land.toLocaleString('ar-EG') + ' م²';
+            document.getElementById('totalBuildingArea').innerText = build.toLocaleString('ar-EG') + ' م²';
+            document.getElementById('populationServed').innerText = pop.toLocaleString('ar-EG');
+
+            const equipConfig = [
+                { name: 'ماكينات الغسيل الكلوي', key: 'ماكينات الغسيل الكلوي', icon: 'fa-filter', color: '#0d9488' },
+                { name: 'غرف العمليات', key: 'غرف العمليات', icon: 'fa-scalpel', color: '#4f46e5' },
+                { name: 'أسرة الافاقة', key: 'اسرة الافاقة', icon: 'fa-bed', color: '#d97706' },
+                { name: 'أسرة الاستقبال', key: 'عدد أسرة الاستقبال', icon: 'fa-hospital-user', color: '#059669' },
+                { name: 'أشعة مقطعية', key: 'أشعة مقطعية', icon: 'fa-x-ray', color: '#e11d48' },
+                { name: 'مناظير', key: 'المناظير', icon: 'fa-microscope', color: '#059669' },
+                { name: 'قسطرة القلب', key: 'قسطرة القلب', icon: 'fa-wave-square', color: '#e11d48' },
+                { name: 'رنين مغناطيسي', key: 'رنين مغناطيسى', icon: 'fa-magnet', color: '#d97706' }
+            ];
+
+            const bedsConfig = [
+                { name: 'أسرة الأقسام التخصصية', key: 'اسرة الاقسام التخصصية', icon: 'fa-procedures', color: '#2563eb' },
+                { name: 'رعاية مركزة كبار', key: 'رعاية مركزة كبار', icon: 'fa-heart-pulse', color: '#dc2626' },
+                { name: 'رعاية قلبية', key: 'رعاية قلبية', icon: 'fa-heartbeat', color: '#ea580c' },
+                { name: 'رعاية حروق', key: 'رعاية حروق', icon: 'fa-fire', color: '#d97706' },
+                { name: 'رعاية مركزة اطفال', key: 'رعاية مركزة اطفال', icon: 'fa-child', color: '#16a34a' },
+                { name: 'رعاية متوسطة اطفال', key: 'رعاية متوسطة اطفال', icon: 'fa-baby', color: '#0284c7' },
+                { name: 'رعاية متوسطة كبار', key: 'رعاية متوسطة كبار', icon: 'fa-user-injured', color: '#7c3aed' },
+                { name: 'السكتة الدماغية', key: 'السكتة الدماغية', icon: 'fa-brain', color: '#4f46e5' },
+                { name: 'رعاية مخ واعصاب', key: 'رعاية مخ واعصاب', icon: 'fa-network-wired', color: '#0d9488' },
+                { name: 'عدد أسرة الرعايات', key: 'عدد اسرة الرعايات', icon: 'fa-bed-pulse', color: '#e11d48' },
+                { name: 'الحضانات', key: 'الحضانات', icon: 'fa-soap', color: '#0284c7' }
+            ];
+
+            const hrConfig = [
+                { name: 'طبيب بشري', key: 'طبيب البشري', icon: 'fa-user-doctor', color: '#2563eb' },
+                { name: 'التعاقد الفعلي', key: 'التعاقد الفعلي', icon: 'fa-file-signature', color: '#059669' },
+                { name: 'طبيب أسنان', key: 'طبيب اسنان', icon: 'fa-tooth', color: '#0d9488' },
+                { name: 'علاج طبيعي', key: 'بيب علاج طب', icon: 'fa-hands-asl-interpreting', color: '#16a34a' },
+                { name: 'صيدلي', key: 'صيدلي', icon: 'fa-pills', color: '#4f46e5' },
+                { name: 'تمريض', key: 'تمريض', icon: 'fa-user-nurse', color: '#e11d48' },
+                { name: 'التعاقد سيستم', key: 'التعاقد سيستم', icon: 'fa-file-contract', color: '#d97706' },
+                { name: 'إجمالي القوى البشرية', key: 'القوي البشرية', icon: 'fa-users', color: '#7c3aed' }
+            ];
+
+            renderList('equipmentListContainer', equipConfig, fDepts);
+            renderList('bedsListContainer', bedsConfig, fDepts);
+            renderList('hrListContainer', hrConfig, fHr);
+            renderChart(fCard);
+        }
+
+        function sumField(dataArray, fieldName) {
+            if (!dataArray || dataArray.length === 0) return 0;
+            return dataArray.reduce((sum, row) => {
+                let key = Object.keys(row).find(k => k.trim().replace(/\s+/g, ' ').includes(fieldName.trim()));
+                let val = key ? parseFloat(row[key].toString().replace(/,/g, '')) || 0 : 0;
+                return sum + val;
+            }, 0);
+        }
+
+        function parsePercent(val) {
+            if (typeof val === 'number') return val > 1 ? val : Math.round(val * 100);
+            if (typeof val === 'string') {
+                let clean = val.replace('%', '').trim();
+                let num = parseFloat(clean) || 0;
+                return num > 1 ? num : Math.round(num * 100);
+            }
+            return 0;
+        }
+
+        function avgPercentField(dataArray, fieldName) {
+            if (!dataArray || dataArray.length === 0) return 0;
+            let total = dataArray.reduce((acc, row) => {
+                let key = Object.keys(row).find(k => k.trim().includes(fieldName.trim()));
+                return acc + (key ? parsePercent(row[key]) : 0);
+            }, 0);
+            return Math.round(total / dataArray.length);
+        }
+
+        function renderList(containerId, items, dataSrc) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+
+            items.forEach(item => {
+                let count = sumField(dataSrc, item.key);
+                container.innerHTML += `
+                    <div class="metric-item">
+                        <div class="metric-number">${count.toLocaleString('ar-EG')}</div>
+                        <div class="metric-title-group">
+                            <span class="metric-name">${item.name}</span>
+                            <div class="metric-icon-box" style="background-color: ${item.color};">
+                                <i class="fa-solid ${item.icon}"></i>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        function renderChart(fCard) {
+            const ctx = document.getElementById('occupancyBarChart').getContext('2d');
+
+            let nicu = avgPercentField(fCard, 'نسبة اشغال الحضانات');
+            let icu = avgPercentField(fCard, 'نسبة اشغال ICU');
+            let picu = avgPercentField(fCard, 'نسبة اشغال PICU');
+            let ccu = avgPercentField(fCard, 'نسبة اشغال CCU');
+            let pimcu = avgPercentField(fCard, 'نسبة اشغال PIMCU');
+
+            if (occupancyChartInstance) occupancyChartInstance.destroy();
+
+            Chart.register(ChartDataLabels);
+
+            occupancyChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['الحضانات', 'CCU', 'ICU', 'PICU', 'PIMCU'],
+                    datasets: [{
+                        label: 'نسبة الإشغال',
+                        data: [nicu, ccu, icu, picu, pimcu],
+                        backgroundColor: ['#4d7cfe', '#ec4899', '#10b981', '#84cc16', '#a855f7'],
+                        borderRadius: 6,
+                        barThickness: 20
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        datalabels: {
+                            anchor: 'end',
+                            align: 'top',
+                            formatter: (value) => value + '%',
+                            font: { family: 'Cairo', weight: 'bold', size: 10 },
+                            color: '#1e293b'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 115,
+                            ticks: { callback: v => v + '%', stepSize: 25 },
+                            grid: { color: '#f1f5f9' }
+                        },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
