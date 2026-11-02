@@ -131,7 +131,7 @@
         .metric-icon-box { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-size: 0.85rem; }
         .metric-name { font-weight: 700; font-size: 0.85rem; color: #334155; }
         .metric-number { font-weight: 800; font-size: 1.05rem; color: #1e293b; }
-        .chart-box { position: relative; height: 320px; width: 100%; }
+        .chart-box { position: relative; height: 350px; width: 100%; }
 
         #loader {
             text-align: center;
@@ -147,7 +147,7 @@
 </head>
 <body>
 
-    <div id="loader"><i class="fa-solid fa-spinner fa-spin me-2"></i>جاري ربط البيانات وقراءة المساحات والكثافة السكانية...</div>
+    <div id="loader"><i class="fa-solid fa-spinner fa-spin me-2"></i>جاري ربط البيانات وتحديث الأقسام والفلتر...</div>
 
     <header class="dashboard-header">
         <div class="container-fluid px-4">
@@ -247,7 +247,7 @@
             <div class="col-xl-3 col-lg-6">
                 <div class="main-card">
                     <div class="section-header">
-                        <span>معدلات إشغال الرعايات</span>
+                        <span>معدلات إشغال الرعايات والأقسام</span>
                         <i class="fa-solid fa-chart-pie text-danger"></i>
                     </div>
                     <div class="chart-box">
@@ -280,13 +280,18 @@
             applyFilters();
         }
 
-        // تنظيف النصوص لمقارنة دقيقة وسلسة للمستشفيات
         function cleanName(name) {
             if (!name) return '';
             return name.toString().replace(/[\s\.\-\_]+/g, '').trim().toLowerCase();
         }
 
         function getHospitalName(row) {
+            let keys = Object.keys(row);
+            for (let k of keys) {
+                if (k.includes('اسم') && (k.includes('مستشف') || k.includes('المستشف'))) {
+                    return row[k] ? row[k].toString().trim() : '';
+                }
+            }
             let vals = Object.values(row);
             return vals[0] ? vals[0].toString().trim() : '';
         }
@@ -295,12 +300,16 @@
             const filter = document.getElementById('hospitalFilter');
             let hospitalsSet = new Set();
 
-            if (cloudData.area) {
-                cloudData.area.forEach(row => {
-                    let hName = getHospitalName(row);
-                    if (hName && !hName.includes('اسم المستشفي')) hospitalsSet.add(hName);
-                });
-            }
+            ['area', 'card', 'hr', 'depts'].forEach(sheetKey => {
+                if (cloudData[sheetKey]) {
+                    cloudData[sheetKey].forEach(row => {
+                        let hName = getHospitalName(row);
+                        if (hName && !hName.includes('اسم المستشفي') && !hName.includes('اسم المستشفى')) {
+                            hospitalsSet.add(hName);
+                        }
+                    });
+                }
+            });
 
             const hospitals = [...hospitalsSet].filter(Boolean);
             
@@ -327,7 +336,7 @@
             const fHr = filterArr(cloudData.hr);
             const fDepts = filterArr(cloudData.depts);
 
-            // جلب القيم من شيت السكان والمساحة بالاعتماد على ترتيب الأعمدة المضمون
+            // جلب المساحات والكثافة بدقة متناهية من شيت السكان والمساحة
             let land = 0, build = 0, pop = 0;
             fArea.forEach(row => {
                 let keys = Object.keys(row);
@@ -394,6 +403,7 @@
         }
 
         function parsePercent(val) {
+            if (!val) return 0;
             if (typeof val === 'number') return val > 1 ? val : Math.round(val * 100);
             if (typeof val === 'string') {
                 let clean = val.replace('%', '').trim();
@@ -403,11 +413,17 @@
             return 0;
         }
 
-        function avgPercentField(dataArray, fieldName) {
+        function avgPercentField(dataArray, keyword) {
             if (!dataArray || dataArray.length === 0) return 0;
+            let matchingKeys = [];
+            if (dataArray.length > 0) {
+                matchingKeys = Object.keys(dataArray[0]).filter(k => k.includes(keyword));
+            }
+            if (matchingKeys.length === 0) return 0;
+            let targetKey = matchingKeys[0];
+
             let total = dataArray.reduce((acc, row) => {
-                let key = Object.keys(row).find(k => k.trim().includes(fieldName.trim()));
-                return acc + (key ? parsePercent(row[key]) : 0);
+                return acc + parsePercent(row[targetKey]);
             }, 0);
             return Math.round(total / dataArray.length);
         }
@@ -435,11 +451,15 @@
         function renderChart(fCard) {
             const ctx = document.getElementById('occupancyBarChart').getContext('2d');
 
-            let nicu = avgPercentField(fCard, 'نسبة اشغال الحضانات');
-            let icu = avgPercentField(fCard, 'نسبة اشغال ICU');
-            let picu = avgPercentField(fCard, 'نسبة اشغال PICU');
-            let ccu = avgPercentField(fCard, 'نسبة اشغال CCU');
-            let pimcu = avgPercentField(fCard, 'نسبة اشغال PIMCU');
+            // جلب نسب الإشغال لجميع الأقسام الظاهرة في شيت كارت تعريفي
+            let nicu = avgPercentField(fCard, 'الحضانات');
+            let icu = avgPercentField(fCard, 'ICU');
+            let picu = avgPercentField(fCard, 'PICU');
+            let ccu = avgPercentField(fCard, 'CCU');
+            let pimcu = avgPercentField(fCard, 'PIMCU');
+            let neuro = avgPercentField(fCard, 'المخ والاعصاب');
+            let stroke = avgPercentField(fCard, 'Stroke');
+            let internal = avgPercentField(fCard, 'القسم الداخلي');
 
             if (occupancyChartInstance) occupancyChartInstance.destroy();
 
@@ -448,13 +468,13 @@
             occupancyChartInstance = new Chart(ctx, {
                 type: 'bar',
                 data: {
-                    labels: ['الحضانات', 'CCU', 'ICU', 'PICU', 'PIMCU'],
+                    labels: ['الحضانات', 'CCU', 'ICU', 'PICU', 'PIMCU', 'مخ وأعصاب', 'Stroke', 'القسم الداخلي'],
                     datasets: [{
                         label: 'نسبة الإشغال',
-                        data: [nicu, ccu, icu, picu, pimcu],
-                        backgroundColor: ['#4d7cfe', '#ec4899', '#10b981', '#84cc16', '#a855f7'],
+                        data: [nicu, ccu, icu, picu, pimcu, neuro, stroke, internal],
+                        backgroundColor: ['#4d7cfe', '#ec4899', '#10b981', '#84cc16', '#a855f7', '#f59e0b', '#06b6d4', '#6366f1'],
                         borderRadius: 6,
-                        barThickness: 20
+                        barThickness: 16
                     }]
                 },
                 options: {
@@ -466,7 +486,7 @@
                             anchor: 'end',
                             align: 'top',
                             formatter: (value) => value + '%',
-                            font: { family: 'Cairo', weight: 'bold', size: 10 },
+                            font: { family: 'Cairo', weight: 'bold', size: 9 },
                             color: '#1e293b'
                         }
                     },
@@ -477,7 +497,10 @@
                             ticks: { callback: v => v + '%', stepSize: 25 },
                             grid: { color: '#f1f5f9' }
                         },
-                        x: { grid: { display: false } }
+                        x: { 
+                            grid: { display: false },
+                            ticks: { font: { family: 'Cairo', size: 9 } }
+                        }
                     }
                 }
             });
