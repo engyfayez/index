@@ -129,3 +129,8 @@ body {
     margin-bottom: 15px;
     display: none;
 }
+/* ضبط الأرقام لتظهر من اليسار والنصوص كما هي */
+.top-card-val, .metric-number {
+    direction: ltr;
+    text-align: left;
+}
