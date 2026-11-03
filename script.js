@@ -127,7 +127,7 @@ function applyFilters() {
     // تم تعديل القوى البشرية: تعديل اسم التعاقد الفعلي إلى "التعاقد بسستم الاستعانة" وحذف التعاقد سيستم نهائياً
     const hrConfig = [
         { name: 'طبيب بشري', key: 'طبيب البشري', icon: 'fa-user-doctor', color: '#2563eb' },
-        { name: 'التعاقد بسستم الاستعانة', key: 'التعاقد', icon: 'fa-file-signature', color: '#059669' },
+        { name: 'التعاقد بسستم الاستعانة', key: 'التعاقد بسستم الاستعانة', icon: 'fa-file-signature', color: '#059669' },
         { name: 'طبيب أسنان', key: 'طبيب اسنان', icon: 'fa-tooth', color: '#0d9488' },
         { name: 'علاج طبيعي', key: 'طبيب علاج طبيعي', icon: 'fa-hands-asl-interpreting', color: '#16a34a' },
         { name: 'صيدلي', key: 'صيدلي', icon: 'fa-pills', color: '#4f46e5' },
