@@ -124,15 +124,14 @@ function applyFilters() {
         { name: 'الحضانات', key: 'الحضانات', icon: 'fa-soap', color: '#0284c7' }
     ];
 
-    // تم تعديل المفاتيح هنا لتطابق أسماء الأعمدة في الشيت (التعاقد وعلاج طبيعي)
+    // تم تعديل القوى البشرية: تعديل اسم التعاقد الفعلي إلى "التعاقد بسستم الاستعانة" وحذف التعاقد سيستم نهائياً
     const hrConfig = [
         { name: 'طبيب بشري', key: 'طبيب البشري', icon: 'fa-user-doctor', color: '#2563eb' },
-        { name: 'التعاقد الفعلي', key: 'التعاقد', icon: 'fa-file-signature', color: '#059669' },
+        { name: 'التعاقد بسستم الاستعانة', key: 'التعاقد', icon: 'fa-file-signature', color: '#059669' },
         { name: 'طبيب أسنان', key: 'طبيب اسنان', icon: 'fa-tooth', color: '#0d9488' },
         { name: 'علاج طبيعي', key: 'طبيب علاج طبيعي', icon: 'fa-hands-asl-interpreting', color: '#16a34a' },
         { name: 'صيدلي', key: 'صيدلي', icon: 'fa-pills', color: '#4f46e5' },
         { name: 'تمريض', key: 'تمريض', icon: 'fa-user-nurse', color: '#e11d48' },
-        { name: 'التعاقد سيستم', key: 'التعاقد', icon: 'fa-file-contract', color: '#d97706' },
         { name: 'إجمالي القوى البشرية', key: 'القوي البشرية', icon: 'fa-users', color: '#7c3aed' }
     ];
 
@@ -185,7 +184,7 @@ function renderList(containerId, items, dataSrc) {
         let count = sumField(dataSrc, item.key);
         container.innerHTML += `
             <div class="metric-item">
-                <div class="metric-number">${count.toLocaleString('ar-EG')}</div>
+                <div class="metric-number" style="direction: ltr; text-align: left;">${count.toLocaleString('ar-EG')}</div>
                 <div class="metric-title-group">
                     <span class="metric-name">${item.name}</span>
                     <div class="metric-icon-box" style="background-color: ${item.color};">
