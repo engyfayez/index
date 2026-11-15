@@ -228,7 +228,7 @@ tfoot td { font-weight: 700; border-bottom: 0; }
     <div class="grid2">
       <section class="panel">
         <div>
-          <h2>المترددون شهريًا</h2>
+          <h2 id="hTrend">المترددون شهريًا</h2>
           <div class="sub" id="trendSub"></div>
         </div>
         <div class="chartbox"><canvas id="trendChart" role="img" aria-label="رسم بياني لعدد المترددين لكل شهر"></canvas></div>
@@ -236,7 +236,7 @@ tfoot td { font-weight: 700; border-bottom: 0; }
       </section>
       <section class="panel">
         <div>
-          <h2>أكثر 5 مستشفيات ترددًا</h2>
+          <h2 id="hTop">أكثر 5 مستشفيات ترددًا</h2>
           <div class="sub" id="topSub"></div>
         </div>
         <div id="toplist" class="toplist"></div>
@@ -245,7 +245,7 @@ tfoot td { font-weight: 700; border-bottom: 0; }
     <div class="grid2">
       <section class="panel">
         <div>
-          <h2>المترددون حسب نوع المستشفى</h2>
+          <h2 id="hDonut">المترددون حسب نوع المستشفى</h2>
           <div class="sub" id="donutSub"></div>
         </div>
         <div class="donutrow">
@@ -464,10 +464,10 @@ tfoot td { font-weight: 700; border-bottom: 0; }
     var t3l, t3v, t3n;
     if (state.hosp === 'all') {
       var per = HOSP.map(function (h, i) { var x = 0; s.ms.forEach(function (m) { x += VISITS[m][i] || 0; }); return { i: i, v: x }; }).sort(function (a, b) { return b.v - a.v; });
-      t3l = 'أعلى مستشفى'; t3v = HOSP[per[0].i]; t3n = fmt(per[0].v) + ' مترددًا';
+      t3l = 'أعلى مستشفى'; t3v = HOSP[per[0].i]; t3n = fmt(per[0].v) + ' ' + LBL.u;
     } else {
       var gt = 0; s.ms.forEach(function (m) { gt += sumMonth(m, ALL).s; });
-      t3l = 'نصيبه من إجمالي المترددين'; t3v = gt ? fmtd(total / gt * 100, 1) + '%' : '—'; t3n = HOSP[state.hosp];
+      t3l = 'نصيبه من إجمالي ' + LBL.t; t3v = gt ? fmtd(total / gt * 100, 1) + '%' : '—'; t3n = HOSP[state.hosp];
     }
     var m = state.month === 'all' ? LASTD : state.month, t4v = '—', t4n = '', t4l;
     if (m === 0) { t4l = 'التغير عن الشهر السابق'; t4n = 'مايو أول شهر في البيانات'; }
@@ -480,7 +480,7 @@ tfoot td { font-weight: 700; border-bottom: 0; }
         t4n = n < s.hs.length ? 'على ' + n + ' من ' + s.hs.length + ' مستشفى لها بيانات في الشهرين' : 'مقارنة بنفس المستشفيات';
       }
     }
-    $('tiles').innerHTML = tile('إجمالي المترددين', fmt(total), filterText()) + tile('المتوسط الشهري', fmt(avg), mwd + ' شهر به بيانات') + tile(t3l, t3v, t3n) + tile(t4l, t4v, t4n);
+    $('tiles').innerHTML = tile('إجمالي ' + LBL.t, fmt(total), filterText()) + tile('المتوسط الشهري', fmt(avg), mwd + ' شهر به بيانات') + tile(t3l, t3v, t3n) + tile(t4l, t4v, t4n);
   }
 
   function renderTrend() {
@@ -497,13 +497,13 @@ tfoot td { font-weight: 700; border-bottom: 0; }
     $('trendSub').textContent = (state.hosp === 'all' ? 'إجمالي كل المستشفيات' : HOSP[state.hosp]) + ' · اضغطي على عمود لاختيار الشهر';
     $('trendLegend').innerHTML = partial.some(Boolean)
       ? '<span><i class="sw solid"></i>بيانات مكتملة</span><span><i class="sw stripe"></i>بيانات بعض المستشفيات غير موجودة في هذا الشهر</span>'
-      : '<span><i class="sw solid"></i>عدد المترددين</span>';
+      : '<span><i class="sw solid"></i>عدد ' + LBL.t + '</span>';
     var ax = axisBase(), ay = axisBase();
     ax.grid = { display: false }; ay.ticks.callback = kfmt;
     var tip = tipBase();
     tip.callbacks = {
       title: function (i) { return MONTHS[i[0].dataIndex] + ' 2026'; },
-      label: function (c) { return 'المترددون: ' + fmt(c.raw); },
+      label: function (c) { return LBL.t + ': ' + fmt(c.raw); },
       afterLabel: function (c) { var q = partial[c.dataIndex]; return q ? 'بيانات ' + q.c + ' من ' + q.t + ' مستشفى' : ''; }
     };
     charts.trend = new Chart($('trendChart'), {
@@ -677,8 +677,16 @@ tfoot td { font-weight: 700; border-bottom: 0; }
     }
     Chart.defaults.font.family = "'IBM Plex Sans Arabic', Tahoma, sans-serif";
     destroyAll();
+    var dd = DEPTS[state.dept];
+    VISITS = matrixOf(dd.key || 'attendees');
+    LASTD = 0;
+    VISITS.forEach(function (row, i) { if (row.some(function (v) { return v != null; })) LASTD = i; });
+    LBL = viewLabels(dd);
+    $('hTrend').textContent = LBL.trend;
+    $('hTop').textContent = LBL.top;
+    $('hDonut').textContent = LBL.donut;
     syncControls();
-    var kind = DEPTS[state.dept].kind;
+    var kind = dd.kind === 'service' ? 'visits' : dd.kind;
     $('visitsView').hidden = kind !== 'visits';
     $('serviceView').hidden = kind !== 'service';
     $('careView').hidden = kind !== 'care';
@@ -697,6 +705,28 @@ tfoot td { font-weight: 700; border-bottom: 0; }
   ].map(function (s) { return s.replace(/[\s.]/g, '').replace(/ى/g, 'ي').replace(/ة/g, 'ه'); });
   function keyOf(s) {
     return String(s).replace(/^م\s*\./, '').replace(/[\s.]/g, '').replace(/ى/g, 'ي').replace(/ة/g, 'ه').replace(/[إأآ]/g, 'ا');
+  }
+
+  var LBL = {};
+  // مصفوفة (شهر × مستشفى) لأي مؤشر من الـ JSON
+  function matrixOf(key) {
+    return MONTHS.map(function (_, m) {
+      return HOSPKEY.map(function (h) {
+        var hb = J && J.byHospital[h], arr = hb && hb.services && hb.services[key];
+        return arr && arr[m] != null ? arr[m] : null;
+      });
+    });
+  }
+  // تسميات العرض حسب القسم (المترددين أو الخدمة نفسها)
+  function viewLabels(d) {
+    var v = d.kind === 'visits';
+    return {
+      t: v ? 'المترددين' : d.n,
+      u: v ? 'مترددًا' : (d.unit || ''),
+      trend: v ? 'المترددون شهريًا' : d.n + ' شهريًا',
+      top: v ? 'أكثر 5 مستشفيات ترددًا' : 'أكثر 5 مستشفيات',
+      donut: v ? 'المترددون حسب نوع المستشفى' : d.n + ' حسب نوع المستشفى'
+    };
   }
 
   function load() {
