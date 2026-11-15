@@ -75,10 +75,6 @@ button, select { font-family: inherit; font-size: inherit; color: inherit; }
 .brand-credit b { color: #9FE3EE; font-weight: 600; }
 @media (max-width: 600px) { .brand-credit { width: 100%; } .brand-logo { height: 60px; } }
 
-.toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
-.upd { font-size: 12px; color: var(--ink-3); }
-#refreshBtn:disabled { opacity: .6; cursor: progress; }
-
 /* header */
 .top { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: end; justify-content: space-between; }
 .eyebrow { font-size: 12px; letter-spacing: .04em; color: var(--ink-3); font-weight: 500; }
@@ -219,13 +215,8 @@ tfoot td { font-weight: 700; border-bottom: 0; }
   </header>
 
   <nav id="depts" class="depts" aria-label="الأقسام"></nav>
-  <div class="toolbar">
-    <button id="refreshBtn" class="reset" type="button">تحديث البيانات من الشيت</button>
-    <span id="updated" class="upd"></span>
-  </div>
-  <div id="status" class="note" hidden></div>
 
-  <section id="filters" class="filters" aria-label="الفلاتر">
+  <section class="filters" aria-label="الفلاتر">
     <div class="field"><label for="monthSel">الشهر</label><select id="monthSel"></select></div>
     <div class="field"><label for="hospSel">المستشفى</label><select id="hospSel"></select></div>
     <button id="resetBtn" class="reset" type="button">إعادة ضبط</button>
@@ -272,11 +263,37 @@ tfoot td { font-weight: 700; border-bottom: 0; }
     </div>
   </div>
 
-  <!-- أقسام لسه بدون بيانات: بتتملأ لما تتضاف بياناتها للشيت -->
-  <section id="emptyView" class="panel" hidden>
-    <h2 id="emptyTitle"></h2>
-    <div class="empty" id="emptyMsg"></div>
-  </section>
+  <!-- أقسام الخدمات: استقبال، ولادات، غسيل كلوي، عمليات، عيادات، علاج طبيعي، معامل، أشعة -->
+  <div id="serviceView" class="view" hidden>
+    <section id="sTiles" class="tiles" aria-live="polite"></section>
+    <div class="grid2">
+      <section class="panel">
+        <div>
+          <h2 id="sTitle">الحركة الشهرية</h2>
+          <div class="sub" id="sSub"></div>
+        </div>
+        <div class="chartbox"><canvas id="sChart" role="img" aria-label="الحركة الشهرية للقسم"></canvas></div>
+      </section>
+      <section class="panel">
+        <div>
+          <h2>الزيادة والنقص</h2>
+          <div class="sub">كل شهر مقارنة بالشهر السابق · اضغطي على شهر لاختياره</div>
+        </div>
+        <div id="sList" class="mlist"></div>
+      </section>
+    </div>
+  </div>
+
+  <!-- أقسام الرعاية والإقامة: مؤشرات الأداء -->
+  <div id="careView" class="view" hidden>
+    <section class="panel">
+      <div>
+        <h2>مؤشرات الأداء</h2>
+        <div class="sub" id="kpiSub"></div>
+      </div>
+      <div id="kpis" class="kpis"></div>
+    </section>
+  </div>
 
   <details id="detailsBox">
     <summary>جدول التفاصيل</summary>
@@ -289,50 +306,50 @@ tfoot td { font-weight: 700; border-bottom: 0; }
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
 (function () {
-  // ===== ربط الشيت =====
-  // من جوجل شيت: ملف ← مشاركة ← نشر على الويب ← اختاري تبويب المترددين ← الصيغة CSV ← نشر
-  // وحطي الرابط اللي هيطلع بين العلامتين تحت:
-  var SHEET_CSV_URL = '';
-
-  // أسماء المستشفيات لازم تكون مطابقة تمامًا لعناوين الأعمدة في الشيت
-  var HOSP = ['سوهاج العام','طهطا العام','جرجا العام','البلينا المركزي','طما المركزي','المنشاة المركزي','اخميم المركزي','جهينة المركزي','المراغة المركزي','دار السلام المركزي','ساقلته المركزي','العسيرات المركزي','صدر سوهاج','رمد سوهاج','رمد طهطا','حميات سوهاج','حميات طهطا','حميات جهينة','حميات جرجا','حميات البلينا','حميات سفلاق'];
-  // نوع المستشفى لكل مستشفى (للدونات)
+  // ===== الاتصال بالشيت =====
+  var DATA_URL = 'https://script.google.com/macros/s/AKfycbzUKrhV1LuctF_GVHUYzrYFUGaqYrd8UCtY_-NSTGpB8MgP7hTtxKaxN8HRBrmHPD4/exec';
+  var J = null;          // البيانات الجاية من Apps Script
+  var HOSP = [];         // أسماء المستشفيات للعرض
+  var HOSPKEY = [];      // الأسماء الأصلية من الشيت (للربط)
   var TYPES = [
     { n: 'مستشفيات عامة', c: '--primary', from: 0, to: 2 },
     { n: 'مستشفيات مركزية', c: '--indigo', from: 3, to: 11 },
     { n: 'صدر ورمد', c: '--gold', from: 12, to: 14 },
     { n: 'حميات', c: '--rose', from: 15, to: 20 }
   ];
-  // kind: visits = عدد المترددين (من الشيت) | service / care = أقسام لسه مفيهاش بيانات
+  var MONTHS = [], VISITS = [], LAST = 0, LASTD = 0, ALLM = [];
   var DEPTS = [
     { n: 'عدد المترددين', kind: 'visits' },
-    { n: 'الاستقبال', kind: 'service' },
-    { n: 'الولادات', kind: 'service' },
-    { n: 'الغسيل الكلوي', kind: 'service' },
-    { n: 'العمليات', kind: 'service' },
-    { n: 'العيادات الخارجية', kind: 'service' },
-    { n: 'الحضانات', kind: 'care' },
-    { n: 'الرعاية المركزة', kind: 'care' },
-    { n: 'الرعاية المركزة اطفال', kind: 'care' },
-    { n: 'الرعاية المتوسطة اطفال', kind: 'care' },
-    { n: 'الرعاية القلبية', kind: 'care' },
-    { n: 'رعاية السكتة الدماغية', kind: 'care' },
-    { n: 'الاقسام التخصصية', kind: 'care' },
-    { n: 'العلاج الطبيعي', kind: 'service' },
-    { n: 'المعامل والتحاليل', kind: 'service' },
-    { n: 'قسم الاشعة', kind: 'service' }
+    { n: 'الاستقبال', kind: 'service', unit: 'حالة', key: 'reception' },
+    { n: 'الولادات', kind: 'service', unit: 'ولادة', key: 'birthsTotal' },
+    { n: 'الغسيل الكلوي', kind: 'service', unit: 'جلسة', key: 'dialysisSessions' },
+    { n: 'العمليات', kind: 'service', unit: 'عملية', key: 'opsInternal' },
+    { n: 'العيادات الخارجية', kind: 'service', unit: 'كشف', key: 'clinicTotal' },
+    { n: 'الحضانات', kind: 'care', key: 'premature' },
+    { n: 'الرعاية المركزة', kind: 'care', key: 'icu_adult' },
+    { n: 'الرعاية المركزة اطفال', kind: 'care', key: 'icu_child' },
+    { n: 'الرعاية المتوسطة اطفال', kind: 'care', key: 'mid_child' },
+    { n: 'الرعاية القلبية', kind: 'care', key: 'cardiac' },
+    { n: 'رعاية السكتة الدماغية', kind: 'care', key: 'stroke' },
+    { n: 'الاقسام التخصصية', kind: 'care', key: 'specialties' },
+    { n: 'العلاج الطبيعي', kind: 'service', unit: 'جلسة', key: 'physioSessions' },
+    { n: 'المعامل والتحاليل', kind: 'service', unit: 'تحليل', key: 'labTests' },
+    { n: 'قسم الاشعة', kind: 'service', unit: 'فحص', key: 'radiologyExams' }
+  ];
+  var KDEF = [
+    { k: 'occ',  src: 'occupancy', n: 'نسبة الإشغال',      u: '%',   d: 1, c: '--primary', t: 'area' },
+    { k: 'alos', src: 'alos',      n: 'متوسط مدة الإقامة', u: 'يوم', d: 1, c: '--indigo',  t: 'columns' },
+    { k: 'turn', src: 'turnover',  n: 'معدل دوران السرير', u: 'مرة', d: 1, c: '--gold',    t: 'steps' },
+    { k: 'mort', src: 'mortality', n: 'نسبة الوفيات',      u: '%',   d: 2, c: '--rose',    t: 'lollipop' }
   ];
 
   var state = { dept: 0, month: 'all', hosp: 'all' };
   var charts = {};
   var ALL = HOSP.map(function (_, i) { return i; });
-  // بيانات الشيت: تتملأ بعد التحميل
-  var MONTHS = [], VISITS = [], LAST = -1, LASTD = 0, ALLM = [];
-
   var $ = function (id) { return document.getElementById(id); };
   var css = function (n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); };
   var fmt = function (n) { return n == null ? '—' : Math.round(n).toLocaleString('en-US'); };
-  var fmtd = function (n, d) { return n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }); };
+  var fmtd = function (n, d) { return n == null ? '—' : n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }); };
   var reduced = function () { return matchMedia('(prefers-reduced-motion: reduce)').matches; };
   function hexA(hex, a) {
     var h = hex.replace('#', '');
@@ -361,71 +378,34 @@ tfoot td { font-weight: 700; border-bottom: 0; }
     return (state.month === 'all' ? 'كل الشهور' : MONTHS[state.month]) + ' · ' + (state.hosp === 'all' ? 'كل المستشفيات' : HOSP[state.hosp]);
   }
   function tile(l, v, n) { return '<div class="tile"><div class="tl">' + l + '</div><div class="tv">' + v + '</div><div class="tn">' + n + '</div></div>'; }
-  function setStatus(msg) { var el = $('status'); el.textContent = msg || ''; el.hidden = !msg; }
 
-  // ---- قراءة الشيت ----
-  function parseCSV(text) {
-    var rows = [], row = [], cell = '', q = false;
-    for (var i = 0; i < text.length; i++) {
-      var c = text[i];
-      if (q) {
-        if (c === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else { q = false; } }
-        else cell += c;
-      } else if (c === '"') { q = true; }
-      else if (c === ',') { row.push(cell); cell = ''; }
-      else if (c === '\n' || c === '\r') {
-        if (c === '\r' && text[i + 1] === '\n') i++;
-        row.push(cell); rows.push(row); row = []; cell = '';
-      } else cell += c;
-    }
-    if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
-    return rows;
+  // ---- seeded sample data (تُستبدل ببيانات حقيقية) ----
+  function seedFrom(str) {
+    var h = 1779033703 ^ str.length;
+    for (var i = 0; i < str.length; i++) { h = Math.imul(h ^ str.charCodeAt(i), 3432918353); h = (h << 13) | (h >>> 19); }
+    return function () {
+      h = Math.imul(h ^ (h >>> 16), 2246822507); h = Math.imul(h ^ (h >>> 13), 3266489909); h ^= h >>> 16;
+      return (h >>> 0) / 4294967296;
+    };
   }
-  function toNum(s) {
-    s = String(s || '').replace(/[\s,]/g, '').replace(/[٠-٩]/g, function (d) { return d.charCodeAt(0) - 1632; });
-    if (!s) return null;
-    var n = Number(s);
-    return isFinite(n) ? n : null;
+  function dataFor(kind) {
+    if (!J) return {};
+    if (state.hosp === 'all') return J[kind] || {};
+    var h = J.byHospital[HOSPKEY[state.hosp]];
+    return (h && h[kind]) || {};
   }
-  // يرجع أسماء المستشفيات اللي مش موجودة في عناوين الشيت
-  function applyData(rows) {
-    var header = rows[0].map(function (x) { return x.trim(); });
-    var colOf = HOSP.map(function (h) { return header.indexOf(h); });
-    var list = rows.slice(1).filter(function (r) { return r[0] && r[0].trim(); }).map(function (r) {
-      return { name: r[0].trim(), v: colOf.map(function (c) { return c < 0 ? null : toNum(r[c]); }) };
+  function getKpi() {
+    var dep = dataFor('departments')[DEPTS[state.dept].key] || {};
+    var out = {};
+    KDEF.forEach(function (k) {
+      var arr = dep[k.src] || [];
+      out[k.k] = MONTHS.map(function (_, m) { return arr[m] == null ? null : arr[m]; });
     });
-    MONTHS = list.map(function (d) { return d.name; });
-    VISITS = list.map(function (d) { return d.v; });
-    LAST = MONTHS.length - 1;
-    LASTD = 0;
-    VISITS.forEach(function (row, i) { if (row.some(function (v) { return v != null; })) LASTD = i; });
-    ALLM = MONTHS.map(function (_, i) { return i; });
-    if (state.month !== 'all' && state.month > LAST) state.month = 'all';
-    return HOSP.filter(function (h) { return header.indexOf(h) < 0; });
+    return out;
   }
-  async function loadData() {
-    var btn = $('refreshBtn');
-    if (!SHEET_CSV_URL) {
-      setStatus('الشيت لسه مش متوصّل. حطي رابط الـ CSV في أول الكود (SHEET_CSV_URL).');
-      renderAll(); return;
-    }
-    btn.disabled = true;
-    setStatus('جاري تحميل البيانات من الشيت…');
-    try {
-      var sep = SHEET_CSV_URL.indexOf('?') < 0 ? '?' : '&';
-      var res = await fetch(SHEET_CSV_URL + sep + '_=' + Date.now(), { cache: 'no-store' });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      var rows = parseCSV((await res.text()).replace(/^\uFEFF/, ''));
-      if (rows.length < 2) throw new Error('empty sheet');
-      var missing = applyData(rows);
-      fillControls();
-      $('updated').textContent = 'آخر تحديث: ' + new Date().toLocaleString('ar-EG');
-      setStatus(missing.length ? 'المستشفيات دي مش موجودة في عناوين الشيت: ' + missing.join('، ') : '');
-    } catch (e) {
-      setStatus('تعذر تحميل البيانات من الشيت. تأكدي إن الشيت منشور على الويب بصيغة CSV وإن الرابط صح.');
-    }
-    btn.disabled = false;
-    renderAll();
+  function getService() {
+    var arr = dataFor('services')[DEPTS[state.dept].key] || [];
+    return MONTHS.map(function (_, m) { return arr[m] == null ? null : arr[m]; });
   }
 
   // ---- chart helpers ----
@@ -446,11 +426,13 @@ tfoot td { font-weight: 700; border-bottom: 0; }
     $('depts').innerHTML = DEPTS.map(function (d, i) {
       return '<button type="button" class="dept" data-i="' + i + '" aria-pressed="false"><span class="dn">' + d.n + '</span><span class="dc"></span></button>';
     }).join('');
-    $('hospSel').innerHTML = '<option value="all">كل المستشفيات</option>' + HOSP.map(function (h, i) { return '<option value="' + i + '">' + h + '</option>'; }).join('');
     $('depts').addEventListener('click', function (e) {
       var b = e.target.closest('.dept'); if (!b) return;
       state.dept = +b.dataset.i; renderAll();
     });
+    $('periodLbl').textContent = MONTHS[0] + ' – ' + MONTHS[LAST] + ' 2026';
+    $('monthSel').innerHTML = '<option value="all">كل الشهور</option>' + MONTHS.map(function (m, i) { return '<option value="' + i + '">' + m + ' 2026</option>'; }).join('');
+    $('hospSel').innerHTML = '<option value="all">كل المستشفيات</option>' + HOSP.map(function (h, i) { return '<option value="' + i + '">' + h + '</option>'; }).join('');
     $('monthSel').addEventListener('change', function (e) { state.month = e.target.value === 'all' ? 'all' : +e.target.value; renderAll(); });
     $('hospSel').addEventListener('change', function (e) { state.hosp = e.target.value === 'all' ? 'all' : +e.target.value; renderAll(); });
     $('resetBtn').addEventListener('click', function () { state.month = 'all'; state.hosp = 'all'; renderAll(); });
@@ -458,18 +440,17 @@ tfoot td { font-weight: 700; border-bottom: 0; }
       var b = e.target.closest('.hrow'); if (!b) return;
       var h = +b.dataset.h; state.hosp = state.hosp === h ? 'all' : h; renderAll();
     });
-    $('refreshBtn').addEventListener('click', function () { loadData(); });
-  }
-  function fillControls() {
-    $('periodLbl').textContent = MONTHS.length ? MONTHS[0] + ' – ' + MONTHS[LAST] + ' 2026' : '—';
-    $('monthSel').innerHTML = '<option value="all">كل الشهور</option>' + MONTHS.map(function (m, i) { return '<option value="' + i + '">' + m + ' 2026</option>'; }).join('');
+    $('sList').addEventListener('click', function (e) {
+      var b = e.target.closest('.mbtn'); if (!b) return;
+      var m = +b.dataset.m; state.month = state.month === m ? 'all' : m; renderAll();
+    });
   }
   function syncControls() {
     var tot = 0; for (var m = 0; m <= LAST; m++) tot += sumMonth(m, ALL).s;
     Array.prototype.forEach.call(document.querySelectorAll('.dept'), function (b) {
       var i = +b.dataset.i, d = DEPTS[i];
       b.setAttribute('aria-pressed', String(i === state.dept));
-      b.querySelector('.dc').textContent = d.kind === 'visits' && MONTHS.length ? 'إجمالي ' + fmt(tot) : 'لا توجد بيانات بعد';
+      b.querySelector('.dc').textContent = d.kind === 'visits' ? 'إجمالي ' + fmt(tot) : d.kind === 'service' ? 'إحصائية الزيادة والنقص' : 'مؤشرات الأداء';
     });
     $('monthSel').value = String(state.month);
     $('hospSel').value = String(state.hosp);
@@ -489,7 +470,7 @@ tfoot td { font-weight: 700; border-bottom: 0; }
       t3l = 'نصيبه من إجمالي المترددين'; t3v = gt ? fmtd(total / gt * 100, 1) + '%' : '—'; t3n = HOSP[state.hosp];
     }
     var m = state.month === 'all' ? LASTD : state.month, t4v = '—', t4n = '', t4l;
-    if (m === 0) { t4l = 'التغير عن الشهر السابق'; t4n = MONTHS[0] + ' أول شهر في البيانات'; }
+    if (m === 0) { t4l = 'التغير عن الشهر السابق'; t4n = 'مايو أول شهر في البيانات'; }
     else {
       t4l = 'التغير في ' + MONTHS[m] + ' عن ' + MONTHS[m - 1];
       var cur = 0, prev = 0, n = 0;
@@ -572,8 +553,8 @@ tfoot td { font-weight: 700; border-bottom: 0; }
   function renderMovers() {
     var m = state.month === 'all' ? LASTD : state.month;
     if (m === 0) {
-      $('movSub').textContent = MONTHS[0] + ' أول شهر في البيانات';
-      $('movers').innerHTML = '<div class="empty">اختاري شهرًا بعد ' + MONTHS[0] + ' لعرض المقارنة بالشهر السابق.</div>'; return;
+      $('movSub').textContent = 'مايو أول شهر في البيانات';
+      $('movers').innerHTML = '<div class="empty">اختاري شهرًا بعد مايو لعرض المقارنة بالشهر السابق.</div>'; return;
     }
     $('movSub').textContent = MONTHS[m] + ' مقارنة بـ' + MONTHS[m - 1] + ' · المستشفيات التي لها بيانات في الشهرين';
     var rows = [];
@@ -603,35 +584,158 @@ tfoot td { font-weight: 700; border-bottom: 0; }
     $('tbl').innerHTML = head + body + foot;
   }
 
+  // =============== أقسام الخدمات ===============
+  function renderService() {
+    var d = DEPTS[state.dept], vals = getService(), s = sel();
+    var m = state.month === 'all' ? LASTD : state.month;
+    while (m > 0 && state.month === 'all' && vals[m] == null) m--;
+    var cur = vals[m], prev = m > 0 ? vals[m - 1] : null;
+    var total = 0, cnt = 0;
+    s.ms.forEach(function (i) { if (vals[i] != null) { total += vals[i]; cnt++; } });
+    var best = -1; vals.forEach(function (v, i) { if (v != null && (best < 0 || v > vals[best])) best = i; });
+
+    var t1n = prev != null && cur != null ? pill((cur - prev) / prev * 100) + '<span>عن ' + MONTHS[m - 1] + '</span>' : (m === 0 ? 'أول شهر في البيانات' : 'لا توجد بيانات');
+    $('sTiles').innerHTML =
+      tile('الحركة في ' + MONTHS[m] + ' (' + d.unit + ')', fmt(cur), t1n) +
+      tile('الإجمالي', fmt(total), filterText()) +
+      tile('المتوسط الشهري', cnt ? fmt(total / cnt) : '—', cnt + ' شهر به بيانات') +
+      tile('أعلى شهر', best >= 0 ? MONTHS[best] : '—', best >= 0 ? fmt(vals[best]) + ' ' + d.unit : '');
+
+    $('sTitle').textContent = 'الحركة الشهرية · ' + d.n;
+    $('sSub').textContent = 'الوحدة: ' + d.unit + ' · ' + (state.hosp === 'all' ? 'كل المستشفيات' : HOSP[state.hosp]) + ' · اضغطي على نقطة لاختيار الشهر';
+
+    $('sList').innerHTML = MONTHS.map(function (mn, i) {
+      var v = vals[i], pv = i > 0 ? vals[i - 1] : null;
+      var chg = v != null && pv != null ? pill((v - pv) / pv * 100) : '<span class="none">' + (i === 0 ? 'البداية' : '—') + '</span>';
+      return '<button type="button" class="mbtn' + (state.month === i ? ' on' : '') + '" data-m="' + i + '"><b>' + mn + '</b><span class="mv">' + fmt(v) + '</span>' + chg + '</button>';
+    }).join('');
+
+    var col = css('--primary');
+    var tip = tipBase();
+    tip.callbacks = { title: function (i) { return MONTHS[i[0].dataIndex] + ' 2026'; }, label: function (c) { return fmt(c.raw) + ' ' + d.unit; } };
+    var ax = axisBase(), ay = axisBase();
+    ax.grid = { display: false }; ay.ticks.callback = kfmt;
+    charts.service = new Chart($('sChart'), {
+      type: 'line',
+      data: { labels: MONTHS, datasets: [{
+        data: vals, borderColor: col, backgroundColor: hexA(col, .14), fill: true, tension: .3, borderWidth: 2.5, spanGaps: false,
+        pointRadius: vals.map(function (_, i) { return state.month === i || (state.month === 'all' && i === m) ? 7 : 4; }),
+        pointBackgroundColor: css('--surface'), pointBorderColor: col, pointBorderWidth: 2, pointHoverRadius: 8
+      }] },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: anim(), layout: { padding: { top: 8, right: 8 } },
+        plugins: { legend: { display: false }, tooltip: tip },
+        scales: { x: ax, y: Object.assign(ay, { grace: '15%' }) },
+        onClick: function (e, els) { if (!els.length) return; var i = els[0].index; state.month = state.month === i ? 'all' : i; renderAll(); },
+        onHover: function (e, els) { e.native.target.style.cursor = els.length ? 'pointer' : 'default'; }
+      }
+    });
+  }
+
+  // =============== أقسام الرعاية ===============
+  function kpiConfig(k, vals, m) {
+    var col = css(k.c), tip = tipBase();
+    tip.callbacks = { title: function (i) { return MONTHS[i[0].dataIndex] + ' 2026'; }, label: function (c) { return k.n + ': ' + fmtd(c.raw, k.d) + ' ' + k.u; } };
+    var ay = axisBase(); ay.ticks.maxTicksLimit = 4;
+    var ax = axisBase(); ax.grid = { display: false };
+    var common = { responsive: true, maintainAspectRatio: false, animation: anim(), layout: { padding: { top: 6, right: 6 } }, plugins: { legend: { display: false }, tooltip: tip } };
+    var dim = function (i) { return i === m ? col : hexA(col, .35); };
+    var pr = vals.map(function (_, i) { return i === m ? 6 : 3; });
+    if (k.t === 'columns') {
+      return { type: 'bar', data: { labels: MONTHS, datasets: [{ data: vals, backgroundColor: vals.map(function (_, i) { return dim(i); }), borderRadius: 6, borderSkipped: 'bottom', maxBarThickness: 34 }] },
+        options: Object.assign({ scales: { x: ax, y: Object.assign(ay, { beginAtZero: true }) } }, common) };
+    }
+    if (k.t === 'lollipop') {
+      tip.filter = function (i) { return i.datasetIndex === 1; };
+      return { type: 'bar', data: { labels: MONTHS, datasets: [
+        { data: vals, backgroundColor: vals.map(function (_, i) { return dim(i); }), barThickness: 3, borderRadius: 2, borderSkipped: 'bottom' },
+        { type: 'line', data: vals, showLine: false, pointRadius: pr.map(function (r) { return r + 2; }), pointBackgroundColor: vals.map(function (_, i) { return i === m ? col : css('--surface'); }), pointBorderColor: col, pointBorderWidth: 2 }
+      ] }, options: Object.assign({ scales: { x: ax, y: Object.assign(ay, { beginAtZero: true, grace: '15%' }) } }, common) };
+    }
+    return { type: 'line', data: { labels: MONTHS, datasets: [{
+      data: vals, borderColor: col, backgroundColor: hexA(col, k.t === 'area' ? .14 : .1), fill: true, tension: k.t === 'area' ? .35 : 0, stepped: k.t === 'steps' ? 'middle' : false, borderWidth: 2,
+      pointRadius: pr, pointBackgroundColor: css('--surface'), pointBorderColor: col, pointBorderWidth: 2, pointHoverRadius: 7
+    }] }, options: Object.assign({ scales: { x: ax, y: Object.assign(ay, { grace: '15%' }) } }, common) };
+  }
+
+  function renderKpis() {
+    $('kpiSub').textContent = 'القسم: ' + DEPTS[state.dept].n + ' · ' + filterText();
+    var data = getKpi(), m = state.month === 'all' ? LASTD : state.month;
+    $('kpis').innerHTML = KDEF.map(function (k) {
+      var v = data[k.k][m], pv = m > 0 ? data[k.k][m - 1] : null;
+      var dl = (v == null || pv == null) ? (m === 0 ? 'أول شهر في البيانات' : 'لا توجد بيانات') : (v - pv >= 0 ? '▲ ' : '▼ ') + fmtd(Math.abs(v - pv), k.d) + ' عن ' + MONTHS[m - 1];
+      return '<div class="kpi"><div class="kh"><span>' + k.n + '</span></div>' +
+        '<div class="kv">' + fmtd(v, k.d) + '<small>' + k.u + ' · ' + MONTHS[m] + '</small></div>' +
+        '<div class="kd">' + dl + '</div><div class="kchart"><canvas id="k_' + k.k + '" role="img" aria-label="' + k.n + ' شهريًا"></canvas></div></div>';
+    }).join('');
+    KDEF.forEach(function (k) { charts[k.k] = new Chart($('k_' + k.k), kpiConfig(k, data[k.k], m)); });
+  }
+
   function renderAll() {
     if (typeof Chart === 'undefined') {
-      setStatus('تعذر تحميل مكتبة الرسوم البيانية. حدّثي الصفحة.'); return;
+      $('depts').insertAdjacentHTML('afterend', '<div class="note">تعذر تحميل مكتبة الرسوم البيانية. حدّثي الصفحة.</div>'); return;
     }
     Chart.defaults.font.family = "'IBM Plex Sans Arabic', Tahoma, sans-serif";
     destroyAll();
     syncControls();
-    var d = DEPTS[state.dept], isVisits = d.kind === 'visits', hasData = isVisits && MONTHS.length > 0;
-    $('filters').hidden = !hasData;
-    $('visitsView').hidden = !hasData;
-    $('detailsBox').hidden = !hasData;
-    $('emptyView').hidden = hasData;
-    if (!hasData) {
-      $('emptyTitle').textContent = d.n;
-      $('emptyMsg').textContent = isVisits
-        ? 'لا توجد بيانات مترددين في الشيت بعد.'
-        : 'لا توجد بيانات لهذا القسم بعد. ستظهر هنا عند إضافتها للشيت.';
-      return;
-    }
-    renderTiles(); renderTrend(); renderTop(); renderDonut(); renderMovers(); renderTable();
+    var kind = DEPTS[state.dept].kind;
+    $('visitsView').hidden = kind !== 'visits';
+    $('serviceView').hidden = kind !== 'service';
+    $('careView').hidden = kind !== 'care';
+    $('detailsBox').hidden = kind !== 'visits';
+    if (kind === 'visits') { renderTiles(); renderTrend(); renderTop(); renderDonut(); renderMovers(); renderTable(); }
+    else if (kind === 'service') renderService();
+    else renderKpis();
   }
 
-  buildControls();
-  fillControls();
-  renderAll();
-  loadData();
-  if (document.fonts && document.fonts.ready) document.fonts.ready.then(renderAll);
-  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', renderAll);
-  new MutationObserver(renderAll).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  // ترتيب ثابت للمستشفيات (نفس ترتيب الداشبورد الأصلي) + مفتاح موحّد للمقارنة
+  var ORDER = [
+    'سوهاج العام','طهطا العام','جرجا العام',
+    'البلينا المركزي','طما المركزي','المنشاة المركزي','اخميم المركزي','جهينة المركزي','المراغة المركزي','دار السلام المركزي','ساقلته المركزي','العسيرات المركزي',
+    'صدر سوهاج','رمد سوهاج','رمد طهطا',
+    'حميات سوهاج','حميات طهطا','حميات جهينة','حميات جرجا','حميات البلينا','حميات سفلاق'
+  ].map(function (s) { return s.replace(/[\s.]/g, '').replace(/ى/g, 'ي').replace(/ة/g, 'ه'); });
+  function keyOf(s) {
+    return String(s).replace(/^م\s*\./, '').replace(/[\s.]/g, '').replace(/ى/g, 'ي').replace(/ة/g, 'ه').replace(/[إأآ]/g, 'ا');
+  }
+
+  function load() {
+    fetch(DATA_URL, { cache: 'no-store' })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (j) {
+        if (j.error) throw new Error(j.error);
+        J = j;
+        HOSPKEY = j.hospitals.slice().sort(function (a, b) {
+          var ia = ORDER.indexOf(keyOf(a)), ib = ORDER.indexOf(keyOf(b));
+          return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib);
+        });
+        HOSP = HOSPKEY.map(function (h) { return h.replace(/^م\.\s*/, ''); });
+        MONTHS = j.months.slice();
+        VISITS = MONTHS.map(function (_, m) {
+          return HOSPKEY.map(function (h) {
+            var hb = j.byHospital[h], arr = hb && hb.services && hb.services.attendees;
+            return arr && arr[m] != null ? arr[m] : null;
+          });
+        });
+        LAST = MONTHS.length - 1;
+        LASTD = 0;
+        VISITS.forEach(function (row, i) { if (row.some(function (v) { return v != null; })) LASTD = i; });
+        ALLM = MONTHS.map(function (_, i) { return i; });
+        ALL = HOSP.map(function (_, i) { return i; });
+        buildControls();
+        renderAll();
+        if (document.fonts && document.fonts.ready) document.fonts.ready.then(renderAll);
+        matchMedia('(prefers-color-scheme: dark)').addEventListener('change', renderAll);
+        new MutationObserver(renderAll).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+      })
+      .catch(function (err) {
+        var box = document.createElement('div');
+        box.className = 'note';
+        box.textContent = 'تعذر تحميل البيانات من الشيت: ' + err.message;
+        $('depts').insertAdjacentElement('afterend', box);
+      });
+  }
+  load();
 })();
 </script>
 
